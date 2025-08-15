@@ -9,33 +9,43 @@ jobs:
     steps:
       - name: Install SSH, Python, dan Ngrok
         run: |
-          # Update paket dengan retry jika gagal
-          sudo apt-get update --fix-missing || sudo apt-get update --fix-missing
+          set +e  # Jangan hentikan script walau ada error
 
-          # Install paket satu per satu dengan retry
-          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y openssh-server || sudo apt-get install -y openssh-server
-          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y python3 python3-pip || sudo apt-get install -y python3 python3-pip
-          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y unzip screen netcat || sudo apt-get install -y unzip screen netcat
+          echo "=== Update paket (max 3x retry) ==="
+          for i in 1 2 3; do
+            sudo apt-get update --fix-missing && break
+            echo "Update gagal, mencoba lagi ($i)..."
+            sleep 5
+          done
 
-          pip3 install websockets
+          echo "=== Install paket satu per satu dengan retry ==="
+          for pkg in openssh-server python3 python3-pip unzip screen netcat; do
+            for i in 1 2 3; do
+              DEBIAN_FRONTEND=noninteractive sudo apt-get install -y $pkg && break
+              echo "Install $pkg gagal, mencoba lagi ($i)..."
+              sleep 5
+            done
+          done
+
+          pip3 install websockets || true
 
           # Buat user SSH
-          sudo useradd -m github
+          sudo useradd -m github || true
           echo 'github:password123' | sudo chpasswd
-          sudo usermod -aG sudo github
+          sudo usermod -aG sudo github || true
 
           # Jalankan SSH Server
-          sudo service ssh start
+          sudo service ssh start || true
 
           # Download Ngrok
-          wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
           unzip ngrok-v3-stable-linux-amd64.zip
           sudo mv ngrok /usr/local/bin
           
-          # Masukkan token ngrok kamu di sini
+          # Token ngrok
           ngrok config add-authtoken 31KUj24RfwPkXQ4xsyW3RhMXH3C_6fdwrjT7h7KGtay9XYy6U
 
-          # Buat WebSocket listener di port 80 yang forward ke SSH (port 22)
+          # Buat WebSocket listener
           cat << 'EOF' > ws.py
           import asyncio, websockets, subprocess
 
