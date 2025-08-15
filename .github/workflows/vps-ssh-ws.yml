@@ -36,8 +36,8 @@ jobs:
           sudo mv ngrok /usr/local/bin
           ngrok config add-authtoken 31KUHycqX8UtKOVFk8S7Aaz4p1n_6rDfeVbY8yuNGyrFphQ8L
 
-          # Jalankan Ngrok di port 80
-          screen -dmS ngrok80 bash -c "ngrok tcp 80 --log=stdout > ngrok.log 2>&1"
+          # Jalankan Ngrok di port 22
+          screen -dmS ngrok22 bash -c "ngrok tcp 22 --log=stdout > ngrok.log 2>&1"
           sleep 5
           HOSTPORT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
 
@@ -48,12 +48,10 @@ jobs:
 
           echo "====================================="
           echo "✅ VPS SSH WS Aktif!"
-          echo "Host & Port : $HOSTPORT"
-          echo "Username    : github"
-          echo "Password    : password123"
-          echo
-          echo "Payload SSH WS:"
-          echo "GET / HTTP/1.1[crlf]Host: $HOSTPORT[crlf]Upgrade: websocket[crlf][crlf]"
+          echo "Host & Port SSH : $HOSTPORT"
+          echo "Username        : github"
+          echo "Password        : password123"
+          echo "Port WebSocket  : 80"
           echo "====================================="
 
           # Biar tetap hidup 6 jam penuh
