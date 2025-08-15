@@ -33,8 +33,7 @@ jobs:
           sudo mv ngrok /usr/local/bin
 
           # Token ngrok
-          ngrok config add-authtoken 31KUj24RfwPkXQ4xsyW3RhMXH3C_6fdwrjT7h7KGtay9XYy6U
-
+          ngrok config add-authtoken 31KUHycqX8UtKOVFk8S7Aaz4p1n_6rDfeVbY8yuNGyrFphQ8L
           # Buat WebSocket listener
           cat << 'EOF' > ws.py
           import asyncio, websockets, subprocess
