@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH, Python, dan Ngrok
+      - name: Install SSH, Python, Ngrok, dan Cloudflare Tunnel
         run: |
           set +e
 
@@ -15,7 +15,7 @@ jobs:
           sudo apt-get update --fix-missing
 
           echo "=== Install paket ==="
-          sudo apt-get install -y openssh-server python3 python3-pip unzip screen netcat-openbsd curl
+          sudo apt-get install -y openssh-server python3 python3-pip unzip screen netcat-openbsd curl wget
 
           pip3 install websockets
 
@@ -27,14 +27,7 @@ jobs:
           # Jalankan SSH Server
           sudo service ssh start || true
 
-          # Download Ngrok
-          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
-          unzip ngrok-v3-stable-linux-amd64.zip
-          sudo mv ngrok /usr/local/bin
-
-          # Token ngrok
-          ngrok config add-authtoken 31KUHycqX8UtKOVFk8S7Aaz4p1n_6rDfeVbY8yuNGyrFphQ8L
-          # Buat WebSocket listener
+          # WebSocket listener
           cat << 'EOF' > ws.py
           import asyncio, websockets, subprocess
 
@@ -70,24 +63,32 @@ jobs:
           asyncio.get_event_loop().run_forever()
           EOF
 
-          # Jalankan WebSocket
+          # Jalankan WebSocket di background
           screen -dmS ws python3 ws.py
 
-          # Jalankan Ngrok TCP port 80
-          screen -dmS ngrok80 bash -c "ngrok tcp 80 --log=stdout > ngrok.log 2>&1"
+          ########## NGROK MODE ##########
+          echo "=== Coba Jalankan Ngrok TCP Port 80 ==="
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
+          unzip -o ngrok-v3-stable-linux-amd64.zip
+          sudo mv ngrok /usr/local/bin
+          ngrok config add-authtoken 31KUHycqX8UtKOVFk8S7Aaz4p1n_6rDfeVbY8yuNGyrFphQ8L
 
-          echo "Menunggu ngrok API aktif..."
-          for i in {1..20}; do
-            HOSTPORT=$(curl --silent http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
-            if [ ! -z "$HOSTPORT" ]; then
-              break
-            fi
-            sleep 1
-          done
+          screen -dmS ngrok80 bash -c "ngrok tcp 80 --log=stdout > ngrok.log 2>&1"
+          sleep 5
+          HOSTPORT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
+
+          ########## FALLBACK CLOUDFLARE ##########
+          if [ -z "$HOSTPORT" ]; then
+            echo "=== Ngrok gagal, coba Cloudflare Tunnel ==="
+            wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+            sudo dpkg -i cloudflared-linux-amd64.deb
+            nohup cloudflared tunnel --url tcp://localhost:80 --logfile tunnel.log > /dev/null 2>&1 &
+            sleep 8
+            HOSTPORT=$(grep -o 'tcp://[0-9a-zA-Z.:]*' tunnel.log | sed 's/tcp:\/\///')
+          fi
 
           if [ -z "$HOSTPORT" ]; then
-            echo "❌ Gagal mendapatkan Host & Port. Log ngrok:"
-            cat ngrok.log
+            echo "❌ Gagal mendapatkan Host & Port!"
             exit 1
           fi
 
