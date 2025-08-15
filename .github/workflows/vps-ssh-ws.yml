@@ -75,16 +75,16 @@ jobs:
 
           screen -dmS ngrok80 bash -c "ngrok tcp 80 --log=stdout > ngrok.log 2>&1"
           sleep 5
-          HOSTPORT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
+          HOSTPORT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -Eo 'tcp://[0-9a-zA-Z.-]+:[0-9]+' | sed 's/tcp:\/\///')
 
           ########## FALLBACK CLOUDFLARE ##########
           if [ -z "$HOSTPORT" ]; then
             echo "=== Ngrok gagal, coba Cloudflare Tunnel ==="
-            wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+            wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
             sudo dpkg -i cloudflared-linux-amd64.deb
             nohup cloudflared tunnel --url tcp://localhost:80 --logfile tunnel.log > /dev/null 2>&1 &
             sleep 8
-            HOSTPORT=$(grep -o 'tcp://[0-9a-zA-Z.:]*' tunnel.log | sed 's/tcp:\/\///')
+            HOSTPORT=$(grep -Eo 'tcp://[0-9a-zA-Z.-]+:[0-9]+' tunnel.log | sed 's/tcp:\/\///')
           fi
 
           if [ -z "$HOSTPORT" ]; then
