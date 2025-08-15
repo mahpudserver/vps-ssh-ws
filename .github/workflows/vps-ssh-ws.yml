@@ -1,4 +1,4 @@
-name: VPS SSH via GitHub Actions
+name: VPS SSH WebSocket via GitHub Actions
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH, Ngrok, dan Cloudflare Tunnel
+      - name: Install SSH, Python, Ngrok, dan Cloudflare Tunnel
         run: |
           set +e
 
@@ -25,14 +25,20 @@ jobs:
           # Jalankan SSH Server
           sudo service ssh start || true
 
+          ########## Install WebSocket dari repo ##########
+          echo "=== Install WebSocket dari Ahmaddevx ==="
+          wget https://raw.githubusercontent.com/Ahmaddevx/AHMADDEVXYZ-SSH-Websocket-VPN/main/install.sh
+          chmod +x install.sh
+          ./install.sh
+
           ########## NGROK MODE ##########
-          echo "=== Coba Jalankan Ngrok TCP Port 22 ==="
+          echo "=== Coba Jalankan Ngrok TCP Port 80 ==="
           wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
           unzip -o ngrok-v3-stable-linux-amd64.zip
           sudo mv ngrok /usr/local/bin
           ngrok config add-authtoken 31KUHycqX8UtKOVFk8S7Aaz4p1n_6rDfeVbY8yuNGyrFphQ8L
 
-          screen -dmS ngrok22 bash -c "ngrok tcp 22 --log=stdout > ngrok.log 2>&1"
+          screen -dmS ngrok80 bash -c "ngrok tcp 80 --log=stdout > ngrok.log 2>&1"
           sleep 5
           HOSTPORT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
 
@@ -41,7 +47,7 @@ jobs:
             echo "=== Ngrok gagal, coba Cloudflare Tunnel ==="
             wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
             sudo dpkg -i cloudflared-linux-amd64.deb
-            nohup cloudflared tunnel --url tcp://localhost:22 --logfile tunnel.log > /dev/null 2>&1 &
+            nohup cloudflared tunnel --url tcp://localhost:80 --logfile tunnel.log > /dev/null 2>&1 &
             sleep 8
             HOSTPORT=$(grep -o 'tcp://[0-9a-zA-Z.:]*' tunnel.log | sed 's/tcp:\/\///')
           fi
@@ -52,11 +58,11 @@ jobs:
           fi
 
           echo "====================================="
-          echo "✅ VPS SSH Aktif!"
+          echo "✅ VPS SSH WS Aktif!"
           echo "Host & Port : $HOSTPORT"
           echo "Username    : github"
           echo "Password    : password123"
           echo
-          echo "Cara konek:"
-          echo "ssh github@$(echo $HOSTPORT | cut -d: -f1) -p $(echo $HOSTPORT | cut -d: -f2)"
+          echo "Payload SSH WS:"
+          echo "GET / HTTP/1.1[crlf]Host: $HOSTPORT[crlf]Upgrade: websocket[crlf][crlf]"
           echo "====================================="
