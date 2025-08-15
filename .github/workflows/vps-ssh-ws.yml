@@ -9,20 +9,18 @@ jobs:
     steps:
       - name: Install SSH, Python, dan Ngrok
         run: |
-          set +e  # Jangan hentikan script walau ada error
+          set +e
 
-          echo "=== Update paket (max 3x retry) ==="
+          echo "=== Update paket ==="
           for i in 1 2 3; do
             sudo apt-get update --fix-missing && break
-            echo "Update gagal, mencoba lagi ($i)..."
             sleep 5
           done
 
-          echo "=== Install paket satu per satu dengan retry ==="
+          echo "=== Install paket ==="
           for pkg in openssh-server python3 python3-pip unzip screen netcat; do
             for i in 1 2 3; do
               DEBIAN_FRONTEND=noninteractive sudo apt-get install -y $pkg && break
-              echo "Install $pkg gagal, mencoba lagi ($i)..."
               sleep 5
             done
           done
@@ -39,13 +37,13 @@ jobs:
 
           # Download Ngrok
           wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
-          unzip -o ngrok-v3-stable-linux-amd64.zip
+          unzip ngrok-v3-stable-linux-amd64.zip
           sudo mv ngrok /usr/local/bin
           
           # Token ngrok
           ngrok config add-authtoken 31KUj24RfwPkXQ4xsyW3RhMXH3C_6fdwrjT7h7KGtay9XYy6U
 
-          # Buat WebSocket listener
+          # Buat WebSocket listener di port 8080
           cat << 'EOF' > ws.py
           import asyncio, websockets, subprocess
 
@@ -76,7 +74,7 @@ jobs:
 
               await asyncio.gather(ws_to_proc(), proc_to_ws())
 
-          start_server = websockets.serve(handler, "0.0.0.0", 80)
+          start_server = websockets.serve(handler, "0.0.0.0", 8080)
           asyncio.get_event_loop().run_until_complete(start_server)
           asyncio.get_event_loop().run_forever()
           EOF
@@ -84,35 +82,31 @@ jobs:
           # Jalankan WebSocket
           screen -dmS ws python3 ws.py
 
-          # Jalankan Ngrok TCP port 80
-          screen -dmS ngrok80 ngrok tcp 80 --log=stdout > ngrok.log &
+          # Expose port 8080 lewat Ngrok
+          screen -dmS ngrok80 ngrok tcp 8080 --log=stdout > ngrok.log &
 
-          echo "Menunggu ngrok API aktif..."
-          for i in {1..15}; do
-              if curl --silent http://127.0.0.1:4040/api/tunnels | grep -q "tcp://"; then
-                  break
-              fi
-              sleep 2
+          # Tunggu sampai ngrok siap
+          for i in {1..10}; do
+            HOSTPORT=$(curl --silent http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
+            if [ -n "$HOSTPORT" ]; then
+              break
+            fi
+            echo "Menunggu ngrok..."
+            sleep 3
           done
 
-          # Ambil Host & Port
-          HOSTPORT=$(curl --silent http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
-
-          if [ -z "$HOSTPORT" ]; then
-              echo "❌ Gagal mendapatkan Host & Port. Log ngrok:"
-              cat ngrok.log
-              exit 1
+          echo "====================================="
+          if [ -n "$HOSTPORT" ]; then
+            echo "✅ VPS SSH WS Aktif!"
+            echo "Host & Port : $HOSTPORT"
+            echo "Username    : github"
+            echo "Password    : password123"
+            echo
+            echo "Payload SSH WS:"
+            echo "GET / HTTP/1.1[crlf]Host: $HOSTPORT[crlf]Upgrade: websocket[crlf][crlf]"
+          else
+            echo "❌ Gagal mendapatkan Host & Port dari ngrok"
+            echo "Log ngrok:"
+            cat ngrok.log
           fi
-
           echo "====================================="
-          echo "✅ VPS SSH WS Aktif!"
-          echo "Host & Port : $HOSTPORT"
-          echo "Username    : github"
-          echo "Password    : password123"
-          echo
-          echo "Payload SSH WS:"
-          echo "GET / HTTP/1.1[crlf]Host: $HOSTPORT[crlf]Upgrade: websocket[crlf][crlf]"
-          echo "====================================="
-
-      - name: Keep VPS Alive
-        run: sleep 21600
