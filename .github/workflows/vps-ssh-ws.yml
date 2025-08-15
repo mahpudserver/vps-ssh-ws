@@ -1,4 +1,4 @@
-name: VPS SSH WebSocket via GitHub Actions
+name: VPS SSH via GitHub Actions
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH, Python, Ngrok, dan Cloudflare Tunnel
+      - name: Install SSH, Ngrok, dan Cloudflare Tunnel
         run: |
           set +e
 
@@ -15,9 +15,7 @@ jobs:
           sudo apt-get update --fix-missing
 
           echo "=== Install paket ==="
-          sudo apt-get install -y openssh-server python3 python3-pip unzip screen netcat-openbsd curl wget
-
-          pip3 install websockets
+          sudo apt-get install -y openssh-server unzip screen curl wget
 
           # Buat user SSH
           sudo useradd -m github || true
@@ -27,64 +25,25 @@ jobs:
           # Jalankan SSH Server
           sudo service ssh start || true
 
-          # WebSocket listener
-          cat << 'EOF' > ws.py
-          import asyncio, websockets, subprocess
-
-          async def handler(websocket, path):
-              proc = await asyncio.create_subprocess_exec(
-                  "nc", "127.0.0.1", "22",
-                  stdin=asyncio.subprocess.PIPE,
-                  stdout=asyncio.subprocess.PIPE
-              )
-
-              async def ws_to_proc():
-                  try:
-                      async for message in websocket:
-                          proc.stdin.write(message.encode())
-                          await proc.stdin.drain()
-                  except:
-                      pass
-
-              async def proc_to_ws():
-                  try:
-                      while True:
-                          data = await proc.stdout.read(1024)
-                          if not data:
-                              break
-                          await websocket.send(data.decode(errors="ignore"))
-                  except:
-                      pass
-
-              await asyncio.gather(ws_to_proc(), proc_to_ws())
-
-          start_server = websockets.serve(handler, "0.0.0.0", 80)
-          asyncio.get_event_loop().run_until_complete(start_server)
-          asyncio.get_event_loop().run_forever()
-          EOF
-
-          # Jalankan WebSocket di background
-          screen -dmS ws python3 ws.py
-
           ########## NGROK MODE ##########
-          echo "=== Coba Jalankan Ngrok TCP Port 80 ==="
+          echo "=== Coba Jalankan Ngrok TCP Port 22 ==="
           wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip
           unzip -o ngrok-v3-stable-linux-amd64.zip
           sudo mv ngrok /usr/local/bin
           ngrok config add-authtoken 31KUHycqX8UtKOVFk8S7Aaz4p1n_6rDfeVbY8yuNGyrFphQ8L
 
-          screen -dmS ngrok80 bash -c "ngrok tcp 80 --log=stdout > ngrok.log 2>&1"
+          screen -dmS ngrok22 bash -c "ngrok tcp 22 --log=stdout > ngrok.log 2>&1"
           sleep 5
-          HOSTPORT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -Eo 'tcp://[0-9a-zA-Z.-]+:[0-9]+' | sed 's/tcp:\/\///')
+          HOSTPORT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[0-9a-zA-Z.:]*' | sed 's/tcp:\/\///')
 
           ########## FALLBACK CLOUDFLARE ##########
           if [ -z "$HOSTPORT" ]; then
             echo "=== Ngrok gagal, coba Cloudflare Tunnel ==="
-            wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+            wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
             sudo dpkg -i cloudflared-linux-amd64.deb
-            nohup cloudflared tunnel --url tcp://localhost:80 --logfile tunnel.log > /dev/null 2>&1 &
+            nohup cloudflared tunnel --url tcp://localhost:22 --logfile tunnel.log > /dev/null 2>&1 &
             sleep 8
-            HOSTPORT=$(grep -Eo 'tcp://[0-9a-zA-Z.-]+:[0-9]+' tunnel.log | sed 's/tcp:\/\///')
+            HOSTPORT=$(grep -o 'tcp://[0-9a-zA-Z.:]*' tunnel.log | sed 's/tcp:\/\///')
           fi
 
           if [ -z "$HOSTPORT" ]; then
@@ -93,11 +52,11 @@ jobs:
           fi
 
           echo "====================================="
-          echo "✅ VPS SSH WS Aktif!"
+          echo "✅ VPS SSH Aktif!"
           echo "Host & Port : $HOSTPORT"
           echo "Username    : github"
           echo "Password    : password123"
           echo
-          echo "Payload SSH WS:"
-          echo "GET / HTTP/1.1[crlf]Host: $HOSTPORT[crlf]Upgrade: websocket[crlf][crlf]"
+          echo "Cara konek:"
+          echo "ssh github@$(echo $HOSTPORT | cut -d: -f1) -p $(echo $HOSTPORT | cut -d: -f2)"
           echo "====================================="
