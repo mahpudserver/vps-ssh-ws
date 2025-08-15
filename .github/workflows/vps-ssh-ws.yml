@@ -9,8 +9,10 @@ jobs:
     steps:
       - name: Install SSH, Python, dan Ngrok
         run: |
-          sudo apt update
-          sudo apt install -y openssh-server python3 python3-pip unzip screen netcat
+          sudo apt update --fix-missing
+          DEBIAN_FRONTEND=noninteractive sudo apt install -y openssh-server
+          DEBIAN_FRONTEND=noninteractive sudo apt install -y python3 python3-pip
+          DEBIAN_FRONTEND=noninteractive sudo apt install -y unzip screen netcat
           pip3 install websockets
 
           # Buat user SSH
