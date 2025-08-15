@@ -55,3 +55,7 @@ jobs:
           echo "Payload SSH WS:"
           echo "GET / HTTP/1.1[crlf]Host: $HOSTPORT[crlf]Upgrade: websocket[crlf][crlf]"
           echo "====================================="
+
+          # Biar tetap hidup 6 jam penuh
+          echo "Menjaga koneksi tetap hidup selama 6 jam..."
+          sleep 21600
